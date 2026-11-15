@@ -327,6 +327,10 @@ namespace Together {
             if (x1 - x0 < 1f || y1 - y0 < 1f) {
                 return false;
             }
+            // 5.5.2 headpat hotfix: a zero-size rect divides by zero below.
+            if (headRect.width < 1f || headRect.height < 1f || armRect.width < 1f || armRect.height < 1f) {
+                return false;
+            }
             int headW = head.width;
             int headH = head.height;
             int sheetW = _armW * 3;

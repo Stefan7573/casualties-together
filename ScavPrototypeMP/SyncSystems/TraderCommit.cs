@@ -243,6 +243,8 @@ internal static class TraderCommit {
             trader.items.Clear();
         }
         trader.items.AddRange(items);
+        // 5.5.2: the ask loop stops once the host's list landed.
+        trader.GetOrAddComponent<TrackerTrader>().received_their_inv = true;
         RefreshOpen(trader);
     }
 
@@ -645,12 +647,13 @@ internal static class TraderCommit {
                 fail = "no-trader";
             }
         }
-        if (live != null) {
+        if (live != null && live.items != null) {
             Body body = null;
             ScavPlayer.TryGetPlayerAndBodyFromClientId(clientId, out _, out body);
             // client walked up first. roll first impression on the host copy before they paint the ui
-            if (TraderScript_MeetPlayer_MultiplayerPatch.EnsureFirstMeet(live, body))
-                PublishTo(live, clientId);
+            TraderScript_MeetPlayer_MultiplayerPatch.EnsureFirstMeet(live, body);
+            // 5.5.2: always answer. a client that missed the first publish kept an empty trader.
+            PublishTo(live, clientId);
         }
     }
 

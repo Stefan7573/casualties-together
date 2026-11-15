@@ -1527,18 +1527,24 @@ namespace Together {
 
                     ScavPlayer me = ScavPlayer.LocalPlayer;
 
-                    if (!Util.IsInWoundView() && me.body.conscious) {
+                    NetBody meNb = (me != null && me.body != null) ? me.netBody : null;
+                    if (!Util.IsInWoundView() && me != null && me.body != null && me.body.conscious && meNb != null) {
                         float pgbkbutton_hght = 80 * uisc;
-                        if (me.netBody.piggybacking_on != null) {
-                            if (UIBullshit._GUI_FocusableButton(new Rect(Screen.width * 0.5f - wdth2 / 2, Screen.height * 0.9f - 10 * uisc, wdth2, pgbkbutton_hght), Lang.Get("piggyback_stop") + "\n" + me.netBody.piggybacking_on.bodyName, out bool focused)) {
-                                me.netBody.StopPiggyback();
+                        // 5.5.2: read once. the button can end the carry and null these mid-frame.
+                        NetBody ridingOn = meNb.piggybacking_on;
+                        NetBody carried = meNb.carrying_person;
+                        if (ridingOn != null) {
+                            if (UIBullshit._GUI_FocusableButton(new Rect(Screen.width * 0.5f - wdth2 / 2, Screen.height * 0.9f - 10 * uisc, wdth2, pgbkbutton_hght), Lang.Get("piggyback_stop") + "\n" + ridingOn.bodyName, out bool focused)) {
+                                meNb.StopPiggyback();
                             }
                             interaction_menu_focused = interaction_menu_focused || focused;
-                        } else if (me.netBody.carrying_person != null) {
-                            if (UIBullshit._GUI_FocusableButton(new Rect(Screen.width * 0.5f - wdth2 / 2, Screen.height * 0.9f - 10 * uisc, wdth2, pgbkbutton_hght), Lang.Get("carry_stop") + "\n" + me.netBody.carrying_person.bodyName, out bool focused)) {
-                                me.netBody.carrying_person.SetNetIgnoreTime(0.2f);
+                        } else if (carried != null) {
+                            if (UIBullshit._GUI_FocusableButton(new Rect(Screen.width * 0.5f - wdth2 / 2, Screen.height * 0.9f - 10 * uisc, wdth2, pgbkbutton_hght), Lang.Get("carry_stop") + "\n" + carried.bodyName, out bool focused)) {
+                                carried.SetNetIgnoreTime(0.2f);
                                 Multiplayer.Client_SendSimpleMessageToServer((byte)NetmsgId.SERVER_RequestStopCarryPerson);
-                                me.netBody.carrying_person.StopPiggyback();
+                                if (carried.piggybacking_on != null) {
+                                    carried.StopPiggyback();
+                                }
                             }
                             interaction_menu_focused = interaction_menu_focused || focused;
                         }

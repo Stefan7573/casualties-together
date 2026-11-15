@@ -2488,6 +2488,7 @@ namespace Together {
                 if (NetObjectRegistry.TryGetSyncInfo(Minigame.game.currentItem.gameObject, out SyncInfo si)) {
                     Multiplayer.Client_SendSimpleMessageToServer((byte)NetmsgId.SERVER_BandageMinigame_DoBandageAction, si.syncId, pb.netId, Util.GetLimbIndex(l), true);
                     si.SetIgnoreTimeForRoundTrip();
+                    si.AwaitServerAck();
                 }
 
             }
@@ -2507,6 +2508,7 @@ namespace Together {
             reader.Get(out knetid bandageid);
             reader.Get(out knetid targetplr);
             reader.Get(out byte limbid);
+            using var _ack = UseAck.After(clientId, bandageid);
 
             if (MedicalSync.Server_CheckCanHealerUseItemForLimb(clientId, targetplr, limbid, bandageid, out ScavPlayer healerPlr, out NetBody targetnb, out SyncInfo item_si)) {
                 if (MinigameBase_StartMinigame_MultiplayerPatch.known_bandages_onuse_lambdas.TryGetValue(item_si.item.id, out OnBandageUse onuse_lambda)) {
@@ -2624,9 +2626,15 @@ namespace Together {
             if (!limb.body.TryGetNetBody(out NetBody nb)) {
                 return;
             }
-            si.SetIgnoreTimeForRoundTrip();
+            // the host never ran TryProsthesisRepair for this item, so it can't know the patch count. send ours.
+            int holeCount = 0;
+            ProsthesisRepair_RememberPatchCount.PatchCount.TryGetValue(si.syncId.id, out holeCount);
+            if (holeCount < 1) {
+                holeCount = Traverse.Create(repair).Field("maxPatches").GetValue<int>();
+            }
+            si.AwaitServerAck();
             LiteNetLib.Utils.NetDataWriter writer = Multiplayer.CreateNamedWriter("CustomCommand");
-            writer.Put("prosthesis_patch " + si.syncId.id.ToString() + " " + nb.netId.id.ToString() + " " + Util.GetLimbIndex(limb).ToString() + " " + flags.ToString());
+            writer.Put("prosthesis_patch " + si.syncId.id.ToString() + " " + nb.netId.id.ToString() + " " + Util.GetLimbIndex(limb).ToString() + " " + flags.ToString() + " " + holeCount.ToString());
             Net.Client_Send(DeliveryMethod.ReliableOrdered, writer);
         }
 
@@ -2636,6 +2644,18 @@ namespace Together {
                 if (plr == null || args == null || args.Length < 5) {
                     return;
                 }
+                try {
+                    Server_HandlePatch(plr, args);
+                } finally {
+                    if (ushort.TryParse(args[1], out ushort ackId)) {
+                        UseAck.Send(plr.playerId, (knetid)ackId);
+                    }
+                }
+            };
+        }
+
+        static void Server_HandlePatch(ScavPlayer plr, string[] args) {
+            {
                 if (!ushort.TryParse(args[1], out ushort itemId) || !ushort.TryParse(args[2], out ushort bodyId) || !byte.TryParse(args[3], out byte limbId) || !int.TryParse(args[4], out int flags)) {
                     return;
                 }
@@ -2655,8 +2675,17 @@ namespace Together {
                 if (limb == null || limb.dismembered || limb.dislocated || !limb.HasProsthetic()) {
                     return;
                 }
+                // patch count used to live only in the host's dictionary, filled when the HOST opened the minigame.
+                // clients open it on their own machine, so every client repair was dropped here. take theirs as a fallback.
                 if (!ProsthesisRepair_RememberPatchCount.PatchCount.TryGetValue(itemId, out int holeCount) || holeCount < 1) {
-                    return;
+                    if (args.Length < 6 || !int.TryParse(args[5], out holeCount)) {
+                        return;
+                    }
+                    // stock kits use 1..50 patches. anything else is garbage.
+                    if (holeCount < 1 || holeCount > 64) {
+                        return;
+                    }
+                    ProsthesisRepair_RememberPatchCount.PatchCount[itemId] = holeCount;
                 }
                 bool placed = false;
                 int holes = limb.prostheticInfo.maxHoles;
@@ -2690,7 +2719,7 @@ namespace Together {
                 itemSi.WriteObjectIntoPacket();
                 MedicalSync.Server_QueueSendCharacterHealth(target, true);
                 ServerMain.Server_AnnounceSound(target.pos, "prosthesisrepair", ServerMain.GetListOfClientIdsExceptThis(plr.playerId));
-            };
+            }
         }
 
         static void SpendPatch(Item item, int holeCount) {

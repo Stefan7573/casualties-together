@@ -411,23 +411,30 @@ namespace Together {
 
         }
         bool _RagdollReadIndividualLimb(Limb limb, ref SyncVar<Vector2_4byte_512> syncpos, ref SyncVar<FloatAngle> syncrot, ref SyncVar<Vector2_4byte_200> syncvel, ref SyncVar<short> syncangvel) {
-            Vector2_4byte_512 limb_rb_position = syncpos.InterpolatedValue;
-            if (!limb.dismembered) {
-                if (Net.IsServer) {
-                    if ((Vector2.SqrMagnitude(limb_rb_position - nb.GetPosition()) < 100)) {
-                    } else {
-#if !RELEASE
-                        log.sus($"{DebugHelp.GetPlayerFullDebugString(nb.body)} something is sus about {DebugHelp.GetGameObjectFullDebugString(limb)} ");
-#endif
-                        return false;
-                    }
-                }
-                limb.transform.position = limb_rb_position;
-                limb.rb.rotation = syncrot.InterpolatedValue;
-                limb.rb.velocity = syncvel.InterpolatedValue;
-                limb.rb.angularVelocity = Util_MPExtensions.UnquantizeFloatFromShort(syncangvel.InterpolatedValue, _RAGDOLL_ANGVEL_QUANTIZE);
+            Vector2 limb_rb_position = syncpos.InterpolatedValue;
+            if (limb.dismembered || limb.rb == null) {
+                return true;
             }
+            // 5.5.2: remote ragdoll limbs are kinematic while they follow the snapshot.
+            if (!limb.rb.isKinematic) {
+                limb.rb.velocity = Vector2.zero;
+                limb.rb.angularVelocity = 0f;
+                limb.rb.isKinematic = true;
+            }
+            limb.transform.position = limb_rb_position;
+            limb.rb.rotation = syncrot.InterpolatedValue;
             return true;
+        }
+
+        static void ReleaseRemoteLimbs(Body body) {
+            if (body == null || body.limbs == null) {
+                return;
+            }
+            foreach (Limb limb in body.limbs) {
+                if (limb != null && limb.rb != null && limb.rb.isKinematic) {
+                    limb.rb.isKinematic = false;
+                }
+            }
         }
 
         internal void ReadRagdollData() {
@@ -794,6 +801,7 @@ namespace Together {
                         }
                         if (body.standing != _standing.Value) {
                             if (_standing.Value) {
+                                ReleaseRemoteLimbs(body);
                                 body.ForceStand(); // force Stand
                             } else {
                                 body.Ragdoll(); // ragdoll is guranteed to work
@@ -823,6 +831,7 @@ namespace Together {
 
                 } else {
                     Vector2 raw = _position.Value;
+                    ReleaseRemoteLimbs(nb.body);
                     nb.body.ForceStand();
                     nb.SetBodyPosition(raw);
                     EnemyMoveProbe.Note(this, EnemyMoveProbe.SimOut, raw);
@@ -831,7 +840,7 @@ namespace Together {
             }
 
             // the ground-pose snapshot would paste the knocked-down shape back over the local hang
-            readingRagdollData = IsSyncGroupEnabled(SyncGroup.SyncGroup3) && !nb.body.standing && !nb.IsPiggybacking();
+            readingRagdollData = !Net.IsServer && IsSyncGroupEnabled(SyncGroup.SyncGroup3) && !nb.body.standing && !nb.IsPiggybacking();
             if (readingRagdollData) {
                 ReadRagdollData();
             }
@@ -2704,11 +2713,51 @@ namespace Together {
 
         // one predicted use. the postfix also runs when stamina no-ops, so a repeat must not slide the deadline.
         public void ArmPredictedUse() {
+            // every request gets its own ack, so each one is counted even when the tick deadline is already armed.
+            AwaitServerAck();
             if (useIgnoreArmed) {
                 return;
             }
             useIgnoreArmed = true;
             SetIgnoreTimeForRoundTrip();
+        }
+
+        // client only. hold the local prediction until the host says it processed the request (UseAck),
+        // instead of guessing how long the round trip takes.
+        int pendingAcks;
+        double pendingAckDeadline;
+        public void AwaitServerAck() {
+            if (!Net.IsClient) {
+                return;
+            }
+            float rtt = ClientMain.RTT_IN_SECONDS_with_margin;
+            if (rtt < 0f) {
+                rtt = 0f;
+            }
+            // hard cap so a lost host or an old host without acks can't freeze the item forever.
+            double wait = 1.5 + Math.Min(rtt * 2f, 6f);
+            pendingAcks++;
+            pendingAckDeadline = Math.Max(pendingAckDeadline, Time.realtimeSinceStartupAsDouble + wait);
+        }
+
+        internal void OnServerAck() {
+            if (pendingAcks <= 0) {
+                return;
+            }
+            pendingAcks--;
+            if (pendingAcks > 0) {
+                return;
+            }
+            // the host state is final now. the snapshot carrying it can trail the reliable ack
+            // by a send interval plus interpolation, so keep a short tail that doesn't scale with ping.
+            int span = (int)(0.25f * Net.ServerEntitySendRate);
+            if (span < 2) {
+                span = 2;
+            }
+            ushort newTick = (ushort)(Net.ServerTick + span);
+            if (LiteEntitySystem.Utils.SequenceDiff(newTick, lastUpdateTick) > 0) {
+                lastUpdateTick = newTick;
+            }
         }
         public void SetIgnoreTimeForRoundTrip(float additional_time_seconds = 0.3f) {
             float extra = ClientMain.RTT_IN_SECONDS_with_margin;
@@ -2737,6 +2786,15 @@ namespace Together {
             }
         }
         public bool IsIgnored() {
+            // a predicted use is still waiting for the host. a fixed RTT window used to run out on high
+            // or jittery ping, and the stale snapshot rolled the item back (or let it be used twice).
+            if (pendingAcks > 0) {
+                if (Time.realtimeSinceStartupAsDouble < pendingAckDeadline) {
+                    return true;
+                }
+                // the host never answered. give up and take whatever it says now.
+                pendingAcks = 0;
+            }
             // positive lead means the deadline is still ahead of the server, wrap included.
             // equal is still this tick, so it stays stale until the server moves past it.
             int lead = LiteEntitySystem.Utils.SequenceDiff(lastUpdateTick, Net.ServerTick);

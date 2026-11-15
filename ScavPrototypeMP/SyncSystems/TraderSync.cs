@@ -239,11 +239,11 @@ public class TrackerTrader : BaseComponentTracker<TraderScript> {
     }
 
     private IEnumerator AskWhenReady() {
-        while (Net.IsClient && Net.IsRunning) {
+        // 5.5.2: keep asking until the inventory actually arrives, one ask could be lost.
+        while (Net.IsClient && Net.IsRunning && !received_their_inv) {
             SyncInfo si = this.si;
             if ((si != null) && (si.syncId != 0)) {
                 TraderCommit.Ask(this);
-                yield break;
             }
             yield return new WaitForSecondsRealtime(0.5f);
         }
