@@ -1,3 +1,17 @@
+## Unofficial build: 5.5.2 + fixes
+
+Fork of [creaturefeaturelarry/casualties-together](https://github.com/creaturefeaturelarry/casualties-together) with two fixes that are waiting upstream:
+
+- Prosthesis repair works for clients, not only for the host ([#60](https://github.com/creaturefeaturelarry/casualties-together/pull/60)).
+- Item use no longer breaks on high ping ([#61](https://github.com/creaturefeaturelarry/casualties-together/pull/61)).
+
+**Install:** download `CasualtiesTogether-Setup.exe` from [Releases](https://github.com/Stefan7573/casualties-together/releases/latest), pick the game folder, press Install.
+Every player in the lobby needs this same build. The old mod files are backed up to `BepInEx\CT-test-backup`.
+
+**Установка:** скачай `CasualtiesTogether-Setup.exe` из [Releases](https://github.com/Stefan7573/casualties-together/releases/latest), укажи папку игры, нажми «Установить». Сборка должна стоять у всех игроков.
+
+---
+
 
 
 <div align="center">
