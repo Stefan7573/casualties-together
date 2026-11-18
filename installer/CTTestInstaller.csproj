@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>CasualtiesTogether-Setup</AssemblyName>
+    <RootNamespace>CTTestInstaller</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Product>Casualties Together setup</Product>
+    <Version>5.5.3.1</Version>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="payload\Together\*.dll" LogicalName="Together/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="payload\CTFixes\*.dll" LogicalName="CTFixes/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="payload\CUCoreLib.dll" LogicalName="CUCoreLib.dll" />
+    <EmbeddedResource Include="payload\BepInEx_win_x64_5.4.23.5.zip" LogicalName="BepInEx.zip" />
+    <EmbeddedResource Include="payload\RU-r-full.json" LogicalName="RU-r-full.json" />
+  </ItemGroup>
+</Project>

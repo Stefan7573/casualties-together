@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    CT Fixes: a small BepInEx plugin that adds two sync fixes on top of the OFFICIAL
+    Casualties: Together build (CasualtiesMP.dll), at runtime, with Harmony.
+
+    Build: dotnet build -c Release -p:GameDir="<Casualties Unknown folder>" -p:ModDir="<folder with CasualtiesMP.dll>"
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>CTFixes</AssemblyName>
+    <RootNamespace>CTFixes</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Version>1.0.0</Version>
+    <DebugType>none</DebugType>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Casualties Unknown</GameDir>
+    <ModDir Condition="'$(ModDir)' == ''">$(GameDir)\BepInEx\plugins\Together</ModDir>
+    <Managed>$(GameDir)\CasualtiesUnknown_Data\Managed</Managed>
+    <BepCore>$(GameDir)\BepInEx\core</BepCore>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="CasualtiesMP"><HintPath>$(ModDir)\CasualtiesMP.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="LiteNetLib"><HintPath>$(ModDir)\LiteNetLib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="LiteEntitySystem"><HintPath>$(ModDir)\LiteEntitySystem.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(Managed)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(Managed)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx"><HintPath>$(BepCore)\BepInEx.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(BepCore)\0Harmony.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>
