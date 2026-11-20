@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    CT Fixes: a small BepInEx plugin that adds two sync fixes on top of the OFFICIAL
+    CT Fixes: a small BepInEx plugin that adds a few fixes on top of the OFFICIAL
     Casualties: Together build (CasualtiesMP.dll), at runtime, with Harmony.
 
     Build: dotnet build -c Release -p:GameDir="<Casualties Unknown folder>" -p:ModDir="<folder with CasualtiesMP.dll>"
@@ -10,7 +10,7 @@
     <AssemblyName>CTFixes</AssemblyName>
     <RootNamespace>CTFixes</RootNamespace>
     <LangVersion>latest</LangVersion>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <DebugType>none</DebugType>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Casualties Unknown</GameDir>

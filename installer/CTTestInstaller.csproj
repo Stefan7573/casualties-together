@@ -8,7 +8,7 @@
     <RootNamespace>CTTestInstaller</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Product>Casualties Together setup</Product>
-    <Version>5.5.4.1</Version>
+    <Version>5.5.4.2</Version>
     <DebugType>none</DebugType>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>

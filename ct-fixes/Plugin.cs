@@ -1,11 +1,13 @@
-// CT Fixes - prosthesis repair for clients in Casualties: Together, applied at runtime to the official build.
-// Same fix as upstream PR #60. The high-ping fix (PR #61) is built into the mod since 5.5.4.
+// CT Fixes - small fixes for Casualties: Together, applied at runtime to the official build.
+// Same fixes as upstream PRs #60, #69 and #70. The high-ping fix (PR #61) is built into the mod since 5.5.4.
 using System;
 using System.Collections.Generic;
 using BepInEx;
 using BepInEx.Logging;
+using CasualtiesTogetherUtils;
 using HarmonyLib;
 using Together;
+using UnityEngine;
 
 namespace CTFixes {
 
@@ -13,13 +15,14 @@ namespace CTFixes {
     [BepInDependency("CasualtiesMP")]
     public class Plugin : BaseUnityPlugin {
         public const string GUID = "stefan7573.ctfixes";
-        public const string VERSION = "1.1.0";
+        public const string VERSION = "1.2.0";
         internal static ManualLogSource Log;
 
         void Awake() {
             Log = Logger;
             var harmony = new Harmony(GUID);
             Try("prosthesis repair for clients", () => ProsthesisFix.Apply(harmony));
+            Try("scatter rule player count", () => ScatterFix.Apply(harmony));
         }
 
         static void Try(string what, Action a) {
@@ -67,10 +70,9 @@ namespace CTFixes {
             if (!__result || !Net.IsServer || item_si == null || item_si.item == null) {
                 return;
             }
+            // Always look the count up again, even if there is an entry already: sync ids are reused,
+            // so an old entry can belong to a different item that had this id before (PR #70).
             ushort id = item_syncid.id;
-            if (patchCount.TryGetValue(id, out int have) && have >= 1) {
-                return;                                    // the host opened this minigame itself
-            }
             Item item = item_si.item;
             if (Known.TryGetValue(item.id, out int n)) {
                 patchCount[id] = n;
@@ -108,6 +110,67 @@ namespace CTFixes {
             }
             probed = holeCount;
             return false;                                  // no minigame on the host
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Fix 2: the "don't scatter" rule counted the wrong players (PR #69).
+    // The required group size comes from a filtered list (same team, past the 20 s spawn grace,
+    // loaded in), but the players nearby were counted from everyone alive. With teams on,
+    // enemies standing next to you counted as your group. Players without a body could also
+    // throw a NullReferenceException there. Same method, counting from the filtered list.
+    // Runs wherever the plugin is installed: the check happens on each player's own machine.
+    // ---------------------------------------------------------------------------------------
+    static class ScatterFix {
+        public static void Apply(Harmony h) {
+            h.Patch(AccessTools.Method(typeof(SharedMain), nameof(SharedMain.CheckIfShouldActivateDispersionPunishmentProtocol)),
+                prefix: new HarmonyMethod(typeof(ScatterFix), nameof(Check)));
+        }
+
+        static bool Check(ScavPlayer plr, out float max_recorded_dist, out int count_plrs_in_range, out int required_count_plrs_in_range, ref bool __result) {
+            count_plrs_in_range = ScavPlayer.AllLivingPlayers.Count;
+            required_count_plrs_in_range = 0;
+            max_recorded_dist = 0;
+            __result = false;
+
+            if (plr == null || plr.body == null || !plr.IsAlive() || plr.levelPlayTime < 20) {
+                return false;
+            }
+            if (count_plrs_in_range <= 1) {
+                return false;
+            }
+
+            List<ScavPlayer> plrs = new List<ScavPlayer>(ScavPlayer.AllLivingPlayers);
+            plrs.RemoveAll(x => x == null || x.body == null || x.levelPlayTime < 20);
+            if (Net.IsServer) {
+                plrs.RemoveAll(x => x.ServerPlayerState == null || !x.ServerPlayerState.is_loaded_in);
+            }
+            if (Multiplayer.rules.Teams) {
+                plrs.RemoveAll(x => !x.IsInSameTeamAs(plr));
+            }
+            if (plrs.Count <= 1) {
+                return false;
+            }
+
+            required_count_plrs_in_range = Math.Max(1, (int)Mathf.Ceil(plrs.Count * (float)Multiplayer.rules.ScatterMinGroupSize * 0.01f));
+
+            float presqr = Util.MetersToTiles(Multiplayer.rules.ScatterPunishDistance);
+            presqr *= presqr;
+            Vector3 pos = plr.body.transform.position;
+            count_plrs_in_range = 0;
+            foreach (ScavPlayer x in plrs) {
+                float d = ((Vector2)(x.body.transform.position - pos)).sqrMagnitude;
+                if (d < presqr) {
+                    count_plrs_in_range++;
+                    if (d > max_recorded_dist) {
+                        max_recorded_dist = d;
+                    }
+                }
+            }
+            max_recorded_dist = Mathf.Sqrt(max_recorded_dist);
+
+            __result = count_plrs_in_range < required_count_plrs_in_range;
+            return false;                                  // skip the original
         }
     }
 }

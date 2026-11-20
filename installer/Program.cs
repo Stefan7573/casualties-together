@@ -14,7 +14,7 @@ using System.Windows.Forms;
 namespace CTTestInstaller {
 
     // Installs the official Casualties: Together 5.5.4 plus the CT Fixes plugin (prosthesis repair for
-    // clients) into a Casualties: Unknown folder, with a backup that "Restore" puts back.
+    // clients, scatter rule count) into a Casualties: Unknown folder, with a backup that "Restore" puts back.
     static class Program {
         const string GameExe = "CasualtiesUnknown.exe";
         const string BackupRoot = "CT-test-backup";
@@ -143,7 +143,7 @@ namespace CTTestInstaller {
             WriteRes("CUCoreLib.dll", cuc);
             log("Файлы мода записаны в " + together);
 
-            // CT Fixes: the prosthesis repair fix as a separate plugin on top of the official build.
+            // CT Fixes: the fixes as a separate plugin on top of the official build.
             Directory.CreateDirectory(fixes);
             foreach (string name in ResNames("CTFixes/")) {
                 WriteRes(name, Path.Combine(fixes, name.Substring("CTFixes/".Length)));
