@@ -1,0 +1,3 @@
+<Project>
+  <!-- standalone: do not inherit the mod's build settings from the repository root -->
+</Project>
